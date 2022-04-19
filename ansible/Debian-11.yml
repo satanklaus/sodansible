@@ -1,0 +1,120 @@
+#!/usr/bin/env ansible-playbook
+- name: 
+    Debian postinstallation
+  hosts: 
+    localhost
+  environment:
+    testenv: shit
+  roles:
+     - hudecof.grub-password
+  vars:
+    hostname: ansible-host
+    dns: 
+      - 77.88.8.8
+      - 77.88.8.1
+    ip: 192.168.1.1
+    mask: 24
+    gateway: 192.168.1.254
+    grub_password_v2_admin: sodadmin
+    grub_password_v2_passwd: grub.pbkdf2.sha512.10000.50C2E02BA34DD1B6C227FC0D32CF0293A1184EAD4AB1D232E128999D825B94BDFF64B96D95C650092ECBEC2A83CAD6E6DBD28662E151CF224F9F26BB8F5479CE.E8D7A44A3ABCEB2269099F35566F06FD848A8F63F5A45A7E83D78BD64EAA9DF21C122BC056D2AD88F74F23AFA982BCF1919EE04D4653B90F374CAC9361B2E57B
+    packages_to_install:
+     - vim
+     - mlocate
+     - openssh-server
+     - bash-completion
+     - zsh
+     - auditd
+     - strace
+     - nmap
+     - tcpdump
+     - wireshark
+     - tshark
+     - zabbix-agent
+     - perl
+     - git
+     - wget
+     - curl
+     - tmux
+     - neofetch
+     - nftables
+     - smartmontools
+     - apt-file
+     - nftables
+     - net-tools
+     - gdisk
+     - unzip
+     - build-essential
+     - automake
+     - autotools-dev
+     - acl
+     - hwinfo
+     - ethtool
+  tasks:
+   - name: debugs
+     debug: 
+       msg: "{{ lookup('env', 'testenv') }} {{ansible_distribution}} @ {{ ansible_distribution_version }}"
+       msg: "{{ lookup('env', 'PATH') }}"
+     environment:
+      PATH: dsafdsafdas
+   - name: install packages
+     apt: 
+       name: "{{ packages_to_install }}"
+       state: latest
+   - name: install sudo
+     package:
+       name: sudo
+       state: present
+   - name: update GRUB
+     shell: update-grub
+     become: True
+   - name: set a hostname
+     ansible.builtin.hostname:
+       #       use: generic
+       name: "{{ hostname }}"
+         #     become: True
+   - name: set timezone
+     community.general.timezone:
+       name: Europe/Moscow
+       hwclock: UTC
+   - name: disable IPv6 (1)
+     ansible.posix.sysctl:
+       name: net.ipv6.conf.all.disable_ipv6
+       value: '1'
+       sysctl_set: yes
+       reload: yes
+       sysctl_file: /etc/sysctl.d/99-sysctl.conf
+   - name: disable IPv6 (2)
+     ansible.posix.sysctl:
+       name: net.ipv6.conf.default.disable_ipv6
+       value: '1'
+       sysctl_set: yes
+       reload: yes
+       sysctl_file: /etc/sysctl.d/99-sysctl.conf
+   - name: UDEV rules
+     ansible.builtin.lineinfile:
+       path: /etc/udev/rules.d/10-persistent.rules
+       regexp: "{{ansible_facts[item].macaddress}}"
+       line: ACTION=="add", SUBSYSTEM=="net", ATTR{address}=="{{ansible_facts[item].macaddress}}", NAME="nic{{index+1}}"
+       create: yes
+     when: ansible_facts[item].type=="ether"
+     loop: "{{ansible_interfaces }}"
+     loop_control:
+       index_var: index
+   - name: rm resolv.conf
+     file:
+       path: /etc/resolv.conf
+       state: absent
+   - name: set static DNSes
+     lineinfile:
+       path: /etc/resolv.conf
+       line: "nameserver {{item}}"
+       state: present
+       group: root
+       owner: root
+       mode: 644
+       create: yes
+     loop: "{{dns}}"
+   - name: network.service set up
+     template:
+       src: network.service.j2
+       dest: /etc/systemd/system/network.service

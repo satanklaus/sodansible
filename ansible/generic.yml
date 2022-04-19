@@ -1,15 +1,25 @@
 #!/usr/bin/env ansible-playbook
 - name: 
-    Linux postinstallation
+    Generic Linux postinstallation
   hosts: 
     localhost
+  roles:
+     - hudecof.grub-password
   vars:
-    hostname: ws-soldatkichev
+    hostname: ansible-host
+    grub_password_v2_admin: sodadmin
+    grub_password_v2_passwd: grub.pbkdf2.sha512.10000.50C2E02BA34DD1B6C227FC0D32CF0293A1184EAD4AB1D232E128999D825B94BDFF64B96D95C650092ECBEC2A83CAD6E6DBD28662E151CF224F9F26BB8F5479CE.E8D7A44A3ABCEB2269099F35566F06FD848A8F63F5A45A7E83D78BD64EAA9DF21C122BC056D2AD88F74F23AFA982BCF1919EE04D4653B90F374CAC9361B2E57B
   tasks:
+   - name: debugs
+     debug: 
+       msg: "{{ ansible_distribution }}"
+   - name: install sudo
+     package:
+       name: sudo
+       state: present
    - name: set a hostname
      ansible.builtin.hostname:
        name: "{{ hostname }}"
-     become: True
    - name: set timezone
      community.general.timezone:
        name: Europe/Moscow
@@ -28,8 +38,4 @@
        sysctl_set: yes
        reload: yes
        sysctl_file: /etc/sysctl.d/99-sysctl.conf
-   - name: OS specific tasks
-     ansible.builtin.debug:
-       msg: "{{ item }}"
-     with_first_found:
-         - "{{ansible_distribution}}.yml"
+

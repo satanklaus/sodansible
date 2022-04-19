@@ -1,0 +1,19 @@
+Description=Custom Networking
+DefaultDependencies=no
+After=sys-subsystem-net-devices-nic1.device
+Requires=sys-subsystem-net-devices-nic1.device
+Before=multi-user.target network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/env ip l set up dev nic1
+ExecStart=/usr/bin/env ip a a {{ip}}/{{mask}} dev nic1
+ExecStart=/usr/bin/env ip r a default via {{gateway}}
+
+ExecStop=/usr/bin/env ip r d default
+ExecStop=/usr/bin/env ip a flush dev nic1
+ExecStop=/usr/bin/env ip l set down dev nic1
+
+[Install]
+WantedBy=multi-user.target
