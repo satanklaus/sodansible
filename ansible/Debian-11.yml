@@ -1,4 +1,12 @@
 #!/usr/bin/env ansible-playbook
+#
+#TODO: move network settings to role
+#TODO: integrate with bitwarden
+#TODO: passwds
+#TODO: nftables with roles
+#TODO: serviced
+#TODO: sudo
+#TODO: ssh key
 - name: 
     Debian postinstallation
   hosts: 
@@ -8,6 +16,7 @@
   roles:
      - hudecof.grub-password
   vars:
+    neofetchline: neofetch --ascii /etc/motd.fetch --color_blocks off --disable packages
     hostname: ansible-host
     dns: 
       - 77.88.8.8
@@ -97,7 +106,7 @@
        line: ACTION=="add", SUBSYSTEM=="net", ATTR{address}=="{{ansible_facts[item].macaddress}}", NAME="nic{{index+1}}"
        create: yes
      when: ansible_facts[item].type=="ether"
-     loop: "{{ansible_interfaces }}"
+     loop: "{{ ansible_interfaces | reject('search','lo') }}"
      loop_control:
        index_var: index
    - name: rm resolv.conf
@@ -118,3 +127,24 @@
      template:
        src: network.service.j2
        dest: /etc/systemd/system/network.service
+   - name: disable old networking
+     ansible.builtin.systemd:
+       name: networking
+       enabled: no
+   - name: enable new networking
+     ansible.builtin.systemd:
+       name: network
+       enabled: yes 
+   - name: motd file
+     ansible.builtin.copy:
+       src: files/motd.fetch
+       dest: /etc/motd.fetch
+       owner: root
+       group: root
+       mode: '0644'
+   - name: motd file start
+     ansible.builtin.lineinfile:
+       path: /etc/profile
+       regexp: "{{neofetchline}}" 
+       line: "{{neofetchline}}"
+
