@@ -1,0 +1,14 @@
+#Include /etc/ssh/sshd_config.d/*.conf
+ChallengeResponseAuthentication no
+UsePAM yes
+X11Forwarding no
+AcceptEnv LANG LC_*
+Subsystem	sftp	/usr/lib/openssh/sftp-server
+PermitRootLogin prohibit-password
+PermitEmptyPasswords no
+AllowUsers sodadmin root
+Protocol 2
+#5 minutes timeout
+ClientAliveInterval 60
+ClientAliveCountMax 5
+MaxAuthTries 3

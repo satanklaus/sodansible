@@ -2,11 +2,15 @@
 #
 #TODO: move network settings to role
 #TODO: integrate with bitwarden
-#TODO: passwds
 #TODO: nftables with roles
-#TODO: serviced
-#TODO: sudo
-#TODO: ssh key
+#TODO: negative look ahead expressions in configs
+#TODO: service restart on config change notifications
+#TODO: zabbix templates for systemd smartmontools
+#TODO: postfix
+#TODO: firewall
+#TODO: vim config
+#TODO: zsh config
+#TODO: netbios lookup
 - name: 
     Debian postinstallation
   hosts: 
@@ -17,7 +21,19 @@
      - hudecof.grub-password
   vars:
     neofetchline: neofetch --ascii /etc/motd.fetch --color_blocks off --disable packages
+    fusioninventory_server: "server=http://relay1.sodrk.ru:62330/plugins/fusioninventory"
     hostname: ansible-host
+    ntpconf: /etc/chrony/chrony.conf
+    saltconf: /etc/salt/minion
+    zabbixserver: zabbix.sodrk.ru
+    zabbixmetadata: sodrk
+    salt:
+      - salt.sodrk.ru
+    ntp:
+      - server 0.ru.pool.ntp.org
+      - server 1.ru.pool.ntp.org
+      - server 2.ru.pool.ntp.org
+      - server 3.ru.pool.ntp.org
     dns: 
       - 77.88.8.8
       - 77.88.8.1
@@ -58,6 +74,11 @@
      - acl
      - hwinfo
      - ethtool
+     - fusioninventory-agent
+     - samba
+     - chrony
+     - salt-minion
+     - sudo
   tasks:
    - name: debugs
      debug: 
@@ -69,10 +90,6 @@
      apt: 
        name: "{{ packages_to_install }}"
        state: latest
-   - name: install sudo
-     package:
-       name: sudo
-       state: present
    - name: update GRUB
      shell: update-grub
      become: True
@@ -125,7 +142,7 @@
      loop: "{{dns}}"
    - name: network.service set up
      template:
-       src: network.service.j2
+       src: templates/network.service.j2
        dest: /etc/systemd/system/network.service
    - name: disable old networking
      ansible.builtin.systemd:
@@ -147,4 +164,93 @@
        path: /etc/profile
        regexp: "{{neofetchline}}" 
        line: "{{neofetchline}}"
-
+   - name: fusioninventory-agent
+     ansible.builtin.lineinfile:
+       path: /etc/fusioninventory/agent.cfg
+       regexp: "{{fusioninventory_server}}" 
+       line: "{{fusioninventory_server}}"
+   - name: enable fusion inventory
+     ansible.builtin.systemd:
+       name: fusioninventory-agent
+       enabled: yes 
+   - name: disable smbd
+     ansible.builtin.systemd:
+       name: smbd
+       enabled: no 
+   - name: enable nmbd
+     ansible.builtin.systemd:
+       name: nmbd
+       enabled: yes 
+   - name: enable chrony
+     ansible.builtin.systemd:
+       name: chrony
+       enabled: yes 
+   - name: enable salt
+     ansible.builtin.systemd:
+       name: salt-minion
+       enabled: yes 
+   - name: remove standart pools and servers
+     replace:
+       path: "{{ntpconf}}"
+       regexp: '^\s*(pool.*|server.*)'
+       replace: '#\1'
+   - name: set ntps
+     lineinfile:
+       path: "{{ntpconf}}"
+       line: "server {{item}}"
+       state: present
+       group: root
+       owner: root
+       mode: 644
+       create: yes
+       insertbefore: BOF
+     loop: "{{ntp}}"
+   - name: remove all other servers
+     replace:
+       path: "{{saltconf}}"
+       regexp: '^\s*(master.*)'
+       replace: '#\1'
+   - name: set salt master
+     lineinfile:
+       path: "{{saltconf}}"
+       line: "master: {{item}}"
+       state: present
+       group: root
+       owner: root
+       mode: 644
+       create: yes
+       insertbefore: BOF
+     loop: "{{salt}}"
+   - name: ssh config copy
+     ansible.builtin.copy:
+       src: files/sshd_config
+       dest: /etc/ssh/sshd_config
+       owner: root
+       group: root
+       mode: '0644'
+   - name: certs directory
+     file:
+       path: /root/.ssh
+       state: directory
+   - name: ssh public key copy
+     ansible.builtin.copy:
+       src: files/ansible.pub
+       dest: /root/.ssh/authorized_keys
+       owner: root
+       group: root
+       mode: '0644'
+   - name: zabbix config
+     template:
+       src: templates/zabbix_agentd.conf.j2
+       dest: /etc/zabbix/zabbix_agentd.conf
+   - name: sodadmin settings
+     ansible.builtin.user:
+       name: sodadmin
+       shell: /usr/bin/zsh
+       groups: sodadmin, sudo
+       password: $6$9dXXSI3FrYuC7MhQ$ugtpv4vplq8ArK7AwrkjNCEfw3hrGflqwifOt41yvRVRx.mqWNghzCnRLUsjneoLsOkaIVCDCGW49O58DMQGG.
+   - name: root settings
+     ansible.builtin.user:
+       name: root
+       shell: /usr/bin/zsh
+       password: $6$944CjpxV6lyBr5.N$K0DUptXZLz.acgYB77jNe8J.Xm2ShcpL4A.CWmOxoXTWEKXF8Lp0Qwlv7KDdlz7s9Ru0j9HTESdpXLJ3iTR7P.
