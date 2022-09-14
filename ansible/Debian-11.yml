@@ -14,12 +14,14 @@
 - name: 
     Debian postinstallation
   hosts: 
-    localhost
+    linux_postinstall
   environment:
     testenv: shit
   roles:
      - hudecof.grub-password
   vars:
+    ansible_user: "root"
+    ansible_ssh_pass: "ansible"
     neofetchline: neofetch --ascii /etc/motd.fetch --color_blocks off --disable packages
     fusioninventory_server: "server=http://relay1.sodrk.ru:62330/plugins/fusioninventory"
     hostname: ansible-host
@@ -30,14 +32,14 @@
     salt:
       - salt.sodrk.ru
     ntp:
-      - server 0.ru.pool.ntp.org
-      - server 1.ru.pool.ntp.org
-      - server 2.ru.pool.ntp.org
-      - server 3.ru.pool.ntp.org
+      - 0.ru.pool.ntp.org
+      - 1.ru.pool.ntp.org
+      - 2.ru.pool.ntp.org
+      - 3.ru.pool.ntp.org
     dns: 
       - 77.88.8.8
       - 77.88.8.1
-    ip: 192.168.1.1
+    ip: 10.149.99.202
     mask: 24
     gateway: 192.168.1.254
     grub_password_v2_admin: sodadmin
@@ -79,17 +81,23 @@
      - chrony
      - salt-minion
      - sudo
+     - bind9-dnsutils
   tasks:
-   - name: debugs
-     debug: 
-       msg: "{{ lookup('env', 'testenv') }} {{ansible_distribution}} @ {{ ansible_distribution_version }}"
-       msg: "{{ lookup('env', 'PATH') }}"
-     environment:
-      PATH: dsafdsafdas
    - name: install packages
      apt: 
        name: "{{ packages_to_install }}"
        state: latest
+       upgrade: full
+       update_cache: yes
+   - name: apt-file update
+     shell: apt-file update
+     become: True
+   - name: update mlocate cache
+     shell: updatedb
+     become: True
+   - name: update smart DB
+     shell: update-smart-drivedb
+     become: True
    - name: update GRUB
      shell: update-grub
      become: True
@@ -123,7 +131,7 @@
        line: ACTION=="add", SUBSYSTEM=="net", ATTR{address}=="{{ansible_facts[item].macaddress}}", NAME="nic{{index+1}}"
        create: yes
      when: ansible_facts[item].type=="ether"
-     loop: "{{ ansible_interfaces | reject('search','lo') }}"
+     loop: "{{ ansible_interfaces | reject('search','lo') | list}}"
      loop_control:
        index_var: index
    - name: rm resolv.conf
@@ -173,6 +181,9 @@
      ansible.builtin.systemd:
        name: fusioninventory-agent
        enabled: yes 
+   - name: initial run fusion-inventory
+     shell: fusioninventory-agent -f 
+     become: True
    - name: disable smbd
      ansible.builtin.systemd:
        name: smbd
